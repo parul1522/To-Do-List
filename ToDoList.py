@@ -15,7 +15,7 @@ root=tk.Tk()
 root.title("TO-DO LIST")
 root.geometry("300x450")
 root.config(bg="#eefafe")
-# root.resizable(False,False)
+root.resizable(False,False)
 
 task_list=[]
 
