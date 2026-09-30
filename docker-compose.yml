@@ -1,0 +1,53 @@
+# Local development stack: PostgreSQL (with pgvector), S3-compatible storage
+# (MinIO) and the FastAPI backend.
+#
+#   cp .env.example .env   # then set JWT_SECRET_KEY
+#   docker compose up --build
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-secondbrain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secondbrain}
+      POSTGRES_DB: ${POSTGRES_DB:-secondbrain}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Object storage for attachments, audio and scanned documents (used from Phase 3).
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-secondbrain}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-secondbrain-secret}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-secondbrain}:${POSTGRES_PASSWORD:-secondbrain}@db:5432/${POSTGRES_DB:-secondbrain}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  miniodata:
